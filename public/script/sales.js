@@ -18,6 +18,26 @@ let periodData = {
     monthly: { label: 'This Month', data: null }
 };
 
+// ==================== 🔐 AUTHENTICATED FETCH HELPER ====================
+async function authenticatedFetch(url, options = {}) {
+    const token = localStorage.getItem('authToken');
+    const headers = {
+        'Accept': 'application/json',
+        ...options.headers
+    };
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include'
+    });
+}
+
+// ==================== PERIOD SWITCHING ====================
 function switchPeriod(period) {
     console.log(`📅 Switching to ${period} view...`);
     currentPeriod = period;
@@ -28,15 +48,9 @@ function switchPeriod(period) {
     });
     document.getElementById(period + 'Tab').classList.add('active');
     
-    // For weekly and monthly, reset to 0 first
-    if (period === 'weekly' || period === 'monthly') {
-        console.log(`🔄 Resetting ${period} data to 0...`);
-        resetSalesDataToZero();
-    } else if (period === 'daily') {
-        // Fetch immediately for daily
-        console.log(`📊 Fetching daily data from database...`);
-        loadSalesReportByPeriod(period);
-    }
+    // Load data for the selected period
+    console.log(`📊 Loading ${period} data...`);
+    loadSalesReportByPeriod(period);
 }
 
 function resetSalesDataToZero() {
@@ -109,15 +123,15 @@ function formatPeriodLabel(period) {
     
     switch(period) {
         case 'daily':
-            return `Today - ${now.toLocaleDateString('en-US', options)}`;
+            return `Today - ${now.toLocaleDateString('en-PH', options)}`;
         case 'weekly':
             const weekStart = new Date(now);
             weekStart.setDate(now.getDate() - now.getDay());
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
-            return `Week: ${weekStart.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})} - ${weekEnd.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}`;
+            return `Week: ${weekStart.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'})} - ${weekEnd.toLocaleDateString('en-PH', {month: 'short', day: 'numeric', year: 'numeric'})}`;
         case 'monthly':
-            return `Month: ${now.toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}`;
+            return `Month: ${now.toLocaleDateString('en-PH', {month: 'long', year: 'numeric'})}`;
         default:
             return 'Sales Report';
     }
@@ -127,7 +141,7 @@ async function loadSalesReportByPeriod(period) {
     try {
         console.log(`📊 Loading ${period} sales data...`);
         
-        const response = await fetch(`/api/dashboard/stats?period=${period}`);
+        const response = await authenticatedFetch(`/api/dashboard/stats?period=${period}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -473,7 +487,7 @@ async function exportSalesReport(format = 'pdf') {
     // Fetch revenue breakdown data
     let revenueBreakdown = {};
     try {
-        const response = await fetch('/api/revenue/breakdown');
+        const response = await authenticatedFetch('/api/revenue/breakdown');
         if (response.ok) {
             const result = await response.json();
             if (result.success && result.data && result.data.breakdown) {
@@ -485,7 +499,7 @@ async function exportSalesReport(format = 'pdf') {
     }
     
     const reportData = {
-        title: `Sales Report - ${today.toLocaleDateString('en-US', { 
+        title: `Sales Report - ${today.toLocaleDateString('en-PH', { 
             year: 'numeric', 
             month: 'long', 
             day: 'numeric' 
@@ -1136,7 +1150,7 @@ async function loadSalesReport() {
             if (el) el.classList.add('loading-pulse');
         });
         
-        const response = await fetch('/api/dashboard/stats');
+        const response = await authenticatedFetch('/api/dashboard/stats');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -1314,7 +1328,7 @@ function updateRevenueBreakdown() {
     };
     
     const today = new Date();
-    const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dateStr = today.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
     
     const categories = [
         { name: 'Rice', label: 'Rice Bowl Meals', percentage: 0, amount: 0, color: categoryColors['Rice'] },
@@ -2049,7 +2063,7 @@ async function calculateRevenueBreakdown() {
         showDonutLoadingState(1);
         showDonutLoadingState(2);
         
-        const response = await fetch('/api/revenue/breakdown');
+        const response = await authenticatedFetch('/api/revenue/breakdown');
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -2124,7 +2138,7 @@ function updateRevenueBreakdownDisplay(breakdown, totalRevenue, date = null) {
         
         if (date) {
             const dateObj = new Date(date);
-            const dateStr = dateObj.toLocaleDateString('en-US', { 
+            const dateStr = dateObj.toLocaleDateString('en-PH', { 
                 month: 'short', 
                 day: 'numeric',
                 year: 'numeric'
@@ -2134,7 +2148,7 @@ function updateRevenueBreakdownDisplay(breakdown, totalRevenue, date = null) {
             if (dateEl1) dateEl1.textContent = dateStr;
             if (dateEl2) dateEl2.textContent = dateStr;
         } else {
-            const defaultDate = new Date().toLocaleDateString('en-US', { 
+            const defaultDate = new Date().toLocaleDateString('en-PH', { 
                 month: 'short', 
                 day: 'numeric',
                 year: 'numeric'

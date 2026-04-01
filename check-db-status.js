@@ -99,3 +99,4 @@ async function checkDatabaseStatus() {
 }
 
 checkDatabaseStatus();
+    

@@ -473,7 +473,7 @@ function createDefaultChartData(stats) {
         }
         
         days.push({
-            label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+            label: date.toLocaleDateString('en-PH', { weekday: 'short' }),
             value: value,
             date: date.toISOString().split('T')[0]
         });

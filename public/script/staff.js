@@ -3250,12 +3250,12 @@ function startDineInCustomersRefresh() {
 
 function generateReceiptHTML(receiptNumber, total, change, gcashRef = '') {
     const timestamp = new Date();
-    const dateStr = timestamp.toLocaleDateString('en-US', { 
+    const dateStr = timestamp.toLocaleDateString('en-PH', { 
         month: '2-digit',
         day: '2-digit',
         year: 'numeric'
     });
-    const timeStr = timestamp.toLocaleTimeString('en-US', { 
+    const timeStr = timestamp.toLocaleTimeString('en-PH', { 
         hour: '2-digit',
         minute: '2-digit',
         hour12: false

@@ -3702,7 +3702,7 @@ function renderUsageTable(usageData) {
                 try {
                     const lastEntry = item.usageHistory[item.usageHistory.length - 1];
                     const date = new Date(lastEntry.date);
-                    lastUsedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+                    lastUsedDate = date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: '2-digit' });
                 } catch (e) {
                     console.warn(`⚠️  Error formatting date for ${item.name}:`, e);
                     lastUsedDate = '-';

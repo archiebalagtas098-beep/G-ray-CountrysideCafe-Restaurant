@@ -5268,28 +5268,48 @@ app.get("/api/dashboard/stats", verifyToken, verifyAdmin, async (req, res) => {
         // If period query is provided, fetch from SalesData
         if (req.query.period) {
             try {
+                // Get current time in Philippines timezone (UTC+8)
                 const now = new Date();
+                const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
                 let startDate, endDate;
                 
                 if (period === 'daily') {
-                    // Get today's data - from midnight to now + 1 day
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    // Get today's data in PH time - from midnight to midnight
+                    startDate = new Date(phTime.getFullYear(), phTime.getMonth(), phTime.getDate());
                     startDate.setHours(0, 0, 0, 0);
                     endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+                    
+                    console.log(`📅 Daily (PH Time):`, {
+                        phTime: phTime.toISOString(),
+                        startDate: startDate.toISOString(),
+                        endDate: endDate.toISOString()
+                    });
                 } else if (period === 'weekly') {
-                    // Get this week's data (Sunday to now)
-                    const dayOfWeek = now.getDay();
-                    startDate = new Date(now);
-                    startDate.setDate(now.getDate() - dayOfWeek);
+                    // Get this week's data in PH time (Sunday to Saturday)
+                    const dayOfWeek = phTime.getDay();
+                    startDate = new Date(phTime);
+                    startDate.setDate(phTime.getDate() - dayOfWeek);
                     startDate.setHours(0, 0, 0, 0);
-                    endDate = new Date(now);
-                    endDate.setHours(23, 59, 59, 999);
+                    endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+                    
+                    console.log(`📅 Weekly (PH Time):`, {
+                        phTime: phTime.toISOString(),
+                        dayOfWeek: dayOfWeek,
+                        startDate: startDate.toISOString(),
+                        endDate: endDate.toISOString()
+                    });
                 } else if (period === 'monthly') {
-                    // Get this month's data
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    // Get this month's data in PH time
+                    startDate = new Date(phTime.getFullYear(), phTime.getMonth(), 1);
                     startDate.setHours(0, 0, 0, 0);
-                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                    endDate.setHours(23, 59, 59, 999);
+                    endDate = new Date(phTime.getFullYear(), phTime.getMonth() + 1, 1);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    console.log(`📅 Monthly (PH Time):`, {
+                        phTime: phTime.toISOString(),
+                        startDate: startDate.toISOString(),
+                        endDate: endDate.toISOString()
+                    });
                 }
                 
                 console.log(`🔍 Querying ${period} sales data:`, {
@@ -5298,33 +5318,69 @@ app.get("/api/dashboard/stats", verifyToken, verifyAdmin, async (req, res) => {
                     endDate: endDate.toISOString()
                 });
                 
-                const salesDataByPeriod = await SalesData.findOne({
-                    period: period,
-                    fullDate: { $gte: startDate, $lt: endDate }
-                }).sort({ fullDate: -1 }).lean();
+                // Query orders within the date range
+                const orders = await Order.find({
+                    createdAt: { $gte: startDate, $lt: endDate },
+                    status: { $in: ['completed', 'Completed', 'paid', 'Paid'] }
+                }).lean();
                 
-                if (salesDataByPeriod) {
-                    console.log(`✅ Found ${period} sales data:`, {
-                        totalOrders: salesDataByPeriod.totalOrders,
-                        totalSales: salesDataByPeriod.totalSales,
-                        totalCustomers: salesDataByPeriod.totalCustomers
+                console.log(`✅ Found ${orders.length} orders for ${period}`);
+                
+                if (orders.length > 0) {
+                    // Calculate statistics from orders
+                    let totalRevenue = 0;
+                    let totalOrders = orders.length;
+                    let uniqueCustomers = new Set();
+                    let paymentBreakdown = { cash: 0, gcash: 0 };
+                    let orderTypes = { dineIn: 0, takeOut: 0 };
+                    
+                    orders.forEach(order => {
+                        totalRevenue += order.total || 0;
+                        
+                        // Track unique customers
+                        if (order.customerId) {
+                            uniqueCustomers.add(order.customerId.toString());
+                        }
+                        
+                        // Track payment methods
+                        if (order.paymentMethod === 'cash') {
+                            paymentBreakdown.cash += order.total || 0;
+                        } else if (order.paymentMethod === 'gcash' || order.paymentMethod === 'GCash') {
+                            paymentBreakdown.gcash += order.total || 0;
+                        }
+                        
+                        // Track order types
+                        if (order.orderType === 'dineIn' || order.orderType === 'Dine In') {
+                            orderTypes.dineIn += 1;
+                        } else if (order.orderType === 'takeOut' || order.orderType === 'Take Out') {
+                            orderTypes.takeOut += 1;
+                        }
                     });
+                    
+                    console.log(`📊 ${period} Statistics:`, {
+                        totalRevenue,
+                        totalOrders,
+                        totalCustomers: uniqueCustomers.size,
+                        paymentBreakdown,
+                        orderTypes
+                    });
+                    
                     return res.json({
                         success: true,
                         data: {
-                            totalRevenue: salesDataByPeriod.totalSales || 0,
-                            totalOrders: salesDataByPeriod.totalOrders || 0,
-                            totalCustomers: salesDataByPeriod.totalCustomers || 0,
-                            totalCosts: salesDataByPeriod.totalCosts || 0,
-                            profit: salesDataByPeriod.profit || 0,
-                            paymentBreakdown: salesDataByPeriod.paymentBreakdown || { cash: 0, gcash: 0 },
-                            orderTypes: salesDataByPeriod.orderTypes || { dineIn: 0, takeOut: 0 },
-                            topProducts: salesDataByPeriod.topProducts || [],
-                            recentOrders: []
+                            totalRevenue: totalRevenue,
+                            totalOrders: totalOrders,
+                            totalCustomers: uniqueCustomers.size,
+                            totalCosts: totalRevenue * 0.35,
+                            profit: totalRevenue * 0.65,
+                            paymentBreakdown: paymentBreakdown,
+                            orderTypes: orderTypes,
+                            topProducts: [],
+                            recentOrders: orders.slice(-10)
                         }
                     });
                 } else {
-                    console.log(`⚠️ No ${period} sales data found, returning zeros`);
+                    console.log(`⚠️ No orders found for ${period}, returning zeros`);
                     return res.json({
                         success: true,
                         data: {

@@ -134,7 +134,7 @@ if (window.location.pathname.includes('orderhistory')) {
                 .map(item => `${item.name} (x${item.quantity})`)
                 .join(', ');
             
-            const dateTime = new Date(order.createdAt).toLocaleString('en-US', {
+            const dateTime = new Date(order.createdAt).toLocaleString('en-PH', {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric',
@@ -645,7 +645,7 @@ if (window.location.pathname.includes('orderhistory')) {
                 
                 // ✅ Display ALL orders, not just first 5
                 todayOrders.forEach((order, index) => {
-                    const time = new Date(order.createdAt).toLocaleTimeString('en-US', {
+                    const time = new Date(order.createdAt).toLocaleTimeString('en-PH', {
                         hour: '2-digit',
                         minute: '2-digit'
                     });
