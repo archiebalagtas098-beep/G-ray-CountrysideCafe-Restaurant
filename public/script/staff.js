@@ -2072,6 +2072,113 @@ function setTakeout() {
     updatePayButtonState();
 }
 
+/**
+ * Shows a stylish alert modal for invalid table number
+ * @param {string} message - The error message to display
+ */
+function showTableErrorModal(message) {
+    try {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease-in-out;
+        `;
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 350px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            animation: slideUp 0.4s ease-in-out;
+        `;
+        
+        // Icon
+        const icon = document.createElement('div');
+        icon.style.cssText = `
+            font-size: 60px;
+            margin-bottom: 15px;
+        `;
+        icon.textContent = '⚠️';
+        modal.appendChild(icon);
+        
+        // Title
+        const title = document.createElement('h2');
+        title.style.cssText = `
+            color: #dc3545;
+            margin: 0 0 15px 0;
+            font-size: 22px;
+            font-weight: bold;
+        `;
+        title.textContent = 'Invalid Table Number';
+        modal.appendChild(title);
+        
+        // Message
+        const msgElement = document.createElement('p');
+        msgElement.style.cssText = `
+            color: #666;
+            margin: 0 0 25px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        `;
+        msgElement.textContent = message;
+        modal.appendChild(msgElement);
+        
+        // Button
+        const button = document.createElement('button');
+        button.style.cssText = `
+            width: 100%;
+            padding: 12px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        `;
+        button.textContent = 'OK';
+        button.onmouseover = () => button.style.background = '#c82333';
+        button.onmouseout = () => button.style.background = '#dc3545';
+        button.onclick = () => {
+            overlay.style.animation = 'slideDown 0.3s ease-in-out';
+            setTimeout(() => overlay.remove(), 300);
+        };
+        modal.appendChild(button);
+        
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        // Close on overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.style.animation = 'slideDown 0.3s ease-in-out';
+                setTimeout(() => overlay.remove(), 300);
+            }
+        };
+        
+    } catch (error) {
+        console.error('❌ Error showing table error modal:', error);
+        // Fallback to toast if modal fails
+        showToast(message, 'error', 2000);
+    }
+}
+
 function setTableNumber() {
     const input = document.getElementById('tableNumber');
     const value = input.value.trim();
@@ -2094,7 +2201,7 @@ function setTableNumber() {
             // Validate table number range (1-6)
             if (tableNum < 1 || tableNum > 6) {
                 console.warn(`❌ Table ${tableNum} out of range (1-6)`);
-                showToast('❌ Tables available: 1-6 only', 'error', 2000);
+                showTableErrorModal('❌ Tables available: 1-6 only');
                 input.value = '';
                 tableNumber = null;
             } else {
