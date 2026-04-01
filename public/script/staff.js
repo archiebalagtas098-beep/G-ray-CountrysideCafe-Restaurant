@@ -170,105 +170,9 @@ function handleTableWaiting(tableNum) {
 function handleTableLeft(tableNum) {
     console.log(`🔔 Attempting to mark Table #${tableNum} as LEFT`);
     
-    // Remove any existing modal
-    const existingModal = document.getElementById('tableLeftConfirmModal');
-    if (existingModal) existingModal.remove();
-    
-    // Create modal overlay
-    const modal = document.createElement('div');
-    modal.id = 'tableLeftConfirmModal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.6);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 10000;
-    `;
-    
-    // Create modal content
-    const modalContent = document.createElement('div');
-    modalContent.style.cssText = `
-        background: white;
-        padding: 40px;
-        border-radius: 12px;
-        max-width: 400px;
-        width: 90%;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        text-align: center;
-        animation: slideUp 0.3s ease;
-    `;
-    
-    // Add animation styles
-    if (!document.getElementById('tableLeftModalStyles')) {
-        const style = document.createElement('style');
-        style.id = 'tableLeftModalStyles';
-        style.textContent = `
-            @keyframes slideUp {
-                from { transform: translateY(20px); opacity: 0; }
-                to { transform: translateY(0); opacity: 1; }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    modalContent.innerHTML = `
-        <div style="margin-bottom: 20px;">
-            <div style="font-size: 48px; margin-bottom: 15px;">👋</div>
-            <h2 style="color: #333; margin: 0 0 10px 0; font-size: 22px;">Mark Table as LEFT</h2>
-            <p style="color: #666; margin: 0; font-size: 14px;">Are you sure you want to mark Table #${tableNum} as LEFT?</p>
-        </div>
-        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 30px;">
-            <button id="cancelTableLeftBtn" style="
-                flex: 1;
-                padding: 12px 20px;
-                background: #f0f0f0;
-                color: #666;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 600;
-                transition: all 0.2s ease;
-            " onmouseover="this.style.background='#e0e0e0'" onmouseout="this.style.background='#f0f0f0'">
-                Cancel
-            </button>
-            <button id="confirmTableLeftBtn" style="
-                flex: 1;
-                padding: 12px 20px;
-                background: #28a745;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 600;
-                transition: all 0.2s ease;
-            " onmouseover="this.style.background='#218838'" onmouseout="this.style.background='#28a745'">
-                Mark as LEFT
-            </button>
-        </div>
-    `;
-    
-    modal.appendChild(modalContent);
-    document.body.appendChild(modal);
-    
-    // Add event listeners
-    document.getElementById('cancelTableLeftBtn').addEventListener('click', () => {
-        console.log(`❌ Cancelled: Did not mark Table #${tableNum} as LEFT`);
-        modal.remove();
-    });
-    
-    document.getElementById('confirmTableLeftBtn').addEventListener('click', () => {
-        console.log(`✅ Confirmed: Marking Table #${tableNum} as LEFT`);
-        updateTableStatus(tableNum, 'left');
-        console.log(`📍 Table #${tableNum} status updated to: LEFT`);
-        modal.remove();
-    });
+    // Directly call markCustomerAsLeft to permanently remove the customer
+    // No confirmation modal needed - just remove immediately
+    markCustomerAsLeft(tableNum);
 }
 
 
@@ -2889,16 +2793,24 @@ function markCustomerAsLeft(tableNumber) {
         
         console.log('📋 Before marking left:', customers.length, 'customers');
         
-        const customer = customers.find(c => c.tableNumber === parseInt(tableNumber));
+        // Find the index of the customer
+        const customerIndex = customers.findIndex(c => c.tableNumber === parseInt(tableNumber));
         
-        if (customer) {
+        if (customerIndex !== -1) {
+            const customer = customers[customerIndex];
             console.log(`✅ Found customer at Table #${tableNumber}:`, customer);
-            customer.hasLeft = true;
-            customer.leftTime = new Date().toISOString();
+            
+            // REMOVE the customer from the array completely (not just mark as left)
+            customers.splice(customerIndex, 1);
+            
+            // Save updated array
             localStorage.setItem('activeDineInCustomers', JSON.stringify(customers));
             
-            console.log('💾 Saved to localStorage');
-            console.log('📋 After marking left:', customers.filter(c => !c.hasLeft).length, 'active customers');
+            console.log('💾 Removed from localStorage');
+            console.log('📋 After removing customer:', customers.length, 'active customers remaining');
+            
+            // Update the table display to show all tables as available
+            renderActiveDineInCustomers();
             
             // Refresh modal if open
             if (typeof loadActiveDineInCustomersModal === 'function') {
@@ -2906,7 +2818,7 @@ function markCustomerAsLeft(tableNumber) {
                 setTimeout(() => loadActiveDineInCustomersModal(), 100);
             }
             
-            console.log(`✅ Table #${tableNumber} marked as LEFT successfully`);
+            console.log(`✅ Table #${tableNumber} marked as LEFT and removed successfully`);
             if (typeof showToast === 'function') {
                 showToast(`✔️ Table #${tableNumber} is now available`, 'success', 2000);
             }
