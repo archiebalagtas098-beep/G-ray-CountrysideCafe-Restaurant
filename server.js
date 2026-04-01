@@ -5285,28 +5285,36 @@ app.get("/api/dashboard/stats", verifyToken, verifyAdmin, async (req, res) => {
                         endDate: endDate.toISOString()
                     });
                 } else if (period === 'weekly') {
-                    // Get this week's data in PH time (Sunday to Saturday)
-                    const dayOfWeek = phTime.getDay();
+                    // Get this week's data in PH time (Rolling 7-day period from today)
                     startDate = new Date(phTime);
-                    startDate.setDate(phTime.getDate() - dayOfWeek);
                     startDate.setHours(0, 0, 0, 0);
                     endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
                     
-                    console.log(`📅 Weekly (PH Time):`, {
+                    console.log(`📅 Weekly (PH Time - Rolling 7-day):`, {
                         phTime: phTime.toISOString(),
-                        dayOfWeek: dayOfWeek,
                         startDate: startDate.toISOString(),
                         endDate: endDate.toISOString()
                     });
                 } else if (period === 'monthly') {
-                    // Get this month's data in PH time
-                    startDate = new Date(phTime.getFullYear(), phTime.getMonth(), 1);
+                    // Get this month's data in PH time (Date-specific: 15th to 14th)
+                    const currentDate = phTime.getDate();
+                    
+                    if (currentDate >= 15) {
+                        // If today is 15th or later, period is 15th this month to 14th next month
+                        startDate = new Date(phTime.getFullYear(), phTime.getMonth(), 15);
+                        endDate = new Date(phTime.getFullYear(), phTime.getMonth() + 1, 15);
+                    } else {
+                        // If today is before 15th, period is 15th last month to 14th this month
+                        startDate = new Date(phTime.getFullYear(), phTime.getMonth() - 1, 15);
+                        endDate = new Date(phTime.getFullYear(), phTime.getMonth(), 15);
+                    }
+                    
                     startDate.setHours(0, 0, 0, 0);
-                    endDate = new Date(phTime.getFullYear(), phTime.getMonth() + 1, 1);
                     endDate.setHours(0, 0, 0, 0);
                     
-                    console.log(`📅 Monthly (PH Time):`, {
+                    console.log(`📅 Monthly (PH Time - 15th to 14th):`, {
                         phTime: phTime.toISOString(),
+                        currentDate: currentDate,
                         startDate: startDate.toISOString(),
                         endDate: endDate.toISOString()
                     });

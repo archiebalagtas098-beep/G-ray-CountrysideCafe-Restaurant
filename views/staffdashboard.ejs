@@ -68,12 +68,17 @@
         <!-- Dynamic content will be inserted here -->
       </div>
 
-      <!-- STOCK MANAGEMENT BUTTON -->
-      <button class="category-btn" id="stockManagementBtn" onclick="openStockManagementModal()" style="background: #4CAF50; color: white; margin-top: 20px;">
-        <i class="fas fa-boxes"></i> Request Stock
-      </button>
+      <!-- STOCK MANAGEMENT AND SETTINGS BUTTONS -->
+      <div class="sidebar-button-group" style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
+        <button class="category-btn" id="stockManagementBtn" onclick="openStockManagementModal()" style="background: #4CAF50; color: white; flex: 1; min-width: 120px;">
+          <i class="fas fa-boxes"></i> Request Stock
+        </button>
+        <button class="category-btn" id="settingsBtn" onclick="openSettingsModal()" style="background: #2196F3; color: white; flex: 1; min-width: 120px;">
+          <i class="fas fa-cog"></i> Settings
+        </button>
+      </div>
 
-      <footer>&copy; 2026 For School Purposes Only. All rights reserved.</footer>
+      <footer>&copy; Graycountryside Cafe 2026:  All rights reserved.</footer>
     </div>
 
     <div class="center"> 

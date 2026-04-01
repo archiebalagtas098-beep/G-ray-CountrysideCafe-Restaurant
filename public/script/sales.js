@@ -92,13 +92,12 @@ function scheduleDataFetch(period) {
     let nextFetchDate;
     
     if (period === 'weekly') {
-        // Weekly = Day-specific (resets every Sunday)
-        // Calculate next Sunday at midnight
+        // Weekly = Rolling 7-day cycle (resets every 7 days from now)
+        // Calculate 7 days from today at midnight
         nextFetchDate = new Date(now);
-        const daysUntilSunday = (7 - now.getDay()) % 7;
-        nextFetchDate.setDate(now.getDate() + (daysUntilSunday === 0 ? 7 : daysUntilSunday));
+        nextFetchDate.setDate(now.getDate() + 7);
         nextFetchDate.setHours(0, 0, 0, 0); // Set to midnight
-        console.log(`📅 Weekly reset scheduled for next Sunday: ${nextFetchDate.toLocaleString()}`);
+        console.log(`📅 Weekly reset scheduled for 7 days from now: ${nextFetchDate.toLocaleString()}`);
     } else if (period === 'monthly') {
         // Monthly = Date-specific (resets on the 15th of each month)
         nextFetchDate = new Date(now.getFullYear(), now.getMonth(), 15);
@@ -137,12 +136,25 @@ function formatPeriodLabel(period) {
             return `Today - ${now.toLocaleDateString('en-PH', options)}`;
         case 'weekly':
             const weekStart = new Date(now);
-            weekStart.setDate(now.getDate() - now.getDay());
+            weekStart.setHours(0, 0, 0, 0);
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
             return `Week: ${weekStart.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'})} - ${weekEnd.toLocaleDateString('en-PH', {month: 'short', day: 'numeric', year: 'numeric'})}`;
         case 'monthly':
-            return `Month: ${now.toLocaleDateString('en-PH', {month: 'long', year: 'numeric'})}`;
+            const currentDate = now.getDate();
+            let monthStart, monthEnd;
+            
+            if (currentDate >= 15) {
+                // 15th this month to 14th next month
+                monthStart = new Date(now.getFullYear(), now.getMonth(), 15);
+                monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 14);
+            } else {
+                // 15th last month to 14th this month
+                monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+                monthEnd = new Date(now.getFullYear(), now.getMonth(), 14);
+            }
+            
+            return `Month: ${monthStart.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'})} - ${monthEnd.toLocaleDateString('en-PH', {month: 'short', day: 'numeric', year: 'numeric'})}`;
         default:
             return 'Sales Report';
     }

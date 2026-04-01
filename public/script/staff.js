@@ -239,7 +239,7 @@ async function addActiveTable(tableNumber, customerId, orderStatus = 'Preparing'
         console.log('➕ Added customer. Total now:', customers.length);
         
         localStorage.setItem('activeDineInCustomers', JSON.stringify(customers));
-        console.log('💾 Saved to localStorage');
+        console.log(' Saved to localStorage');
         
         const verify = localStorage.getItem('activeDineInCustomers');
         console.log('✅ Verification - localStorage now contains:', verify);
@@ -2913,7 +2913,7 @@ function markCustomerAsLeft(tableNumber) {
             // Save updated array
             localStorage.setItem('activeDineInCustomers', JSON.stringify(customers));
             
-            console.log('💾 Removed from localStorage');
+            console.log('Removed from localStorage');
             console.log('📋 After removing customer:', customers.length, 'active customers remaining');
             
             // Update the table display to show all tables as available
@@ -4222,7 +4222,7 @@ function openSettingsModal() {
     
     // Modal header
     const header = document.createElement('h2');
-    header.textContent = '⚙️ Settings';
+    header.textContent = 'Settings';
     header.style.cssText = `
         margin: 0 0 20px 0;
         color: #333;
@@ -4298,7 +4298,7 @@ function openSettingsModal() {
     
     // Save button
     const saveBtn = document.createElement('button');
-    saveBtn.textContent = '💾 Save Changes';
+    saveBtn.textContent = 'Save Changes';
     saveBtn.disabled = true;
     saveBtn.style.cssText = `
         padding: 12px 20px;
@@ -4561,7 +4561,7 @@ function handleCustomerNotLeft(tableNumber) {
             customer.hasLeft = false;
             localStorage.setItem('activeDineInCustomers', JSON.stringify(customers));
             
-            console.log('💾 Saved to localStorage');
+            console.log(' Saved updated customer data to Database');
             console.log('📋 Active customers:', customers.filter(c => !c.hasLeft).length);
             
             // Refresh modal if open
