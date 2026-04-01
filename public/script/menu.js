@@ -2184,7 +2184,7 @@ const productIngredientMap = {
             'Butter': 0.05, 
             'Garlic': 0.02, 
             'Salt': 0.01, 
-            'Pepper': 0.005 
+            'Black pepper': 0.005 
         },
         servingware: 'plate'
     },
@@ -2196,7 +2196,7 @@ const productIngredientMap = {
             'Butter': 0.1,
             'Garlic': 0.04,
             'Salt': 0.02,
-            'Pepper': 0.01
+            'Black pepper': 0.01
         },
         servingware: 'plate'
     },
@@ -2208,7 +2208,43 @@ const productIngredientMap = {
             'Butter': 0.15,
             'Garlic': 0.06,
             'Salt': 0.03,
-            'Pepper': 0.015
+            'Black pepper': 0.015
+        },
+        servingware: 'plate'
+    },
+
+    'Chicken Buffalo Wings (S)': {
+        ingredients: { 
+            'Chicken Wings': 0.5, 
+            'Buffalo Sauce': 0.1, 
+            'Butter': 0.05, 
+            'Garlic': 0.02, 
+            'Salt': 0.01, 
+            'Black pepper': 0.005 
+        },
+        servingware: 'plate'
+    },
+
+    'Chicken Buffalo Wings (M)': {
+        ingredients: { 
+            'Chicken Wings': 1.0, 
+            'Buffalo Sauce': 0.2, 
+            'Butter': 0.1,
+            'Garlic': 0.04,
+            'Salt': 0.02,
+            'Black pepper': 0.01
+        },
+        servingware: 'plate'
+    },
+
+    'Chicken Buffalo Wings (L)': {
+        ingredients: { 
+            'Chicken Wings': 1.5, 
+            'Buffalo Sauce': 0.3, 
+            'Butter': 0.15,
+            'Garlic': 0.06,
+            'Salt': 0.03,
+            'Black pepper': 0.015
         },
         servingware: 'plate'
     }
