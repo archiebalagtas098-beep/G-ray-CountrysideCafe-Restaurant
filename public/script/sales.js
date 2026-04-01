@@ -92,13 +92,24 @@ function scheduleDataFetch(period) {
     let nextFetchDate;
     
     if (period === 'weekly') {
-        // Fetch after 7 days from now
-        nextFetchDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        console.log(`📅 Next fetch scheduled for: ${nextFetchDate.toLocaleString()}`);
+        // Weekly = Day-specific (resets every Sunday)
+        // Calculate next Sunday at midnight
+        nextFetchDate = new Date(now);
+        const daysUntilSunday = (7 - now.getDay()) % 7;
+        nextFetchDate.setDate(now.getDate() + (daysUntilSunday === 0 ? 7 : daysUntilSunday));
+        nextFetchDate.setHours(0, 0, 0, 0); // Set to midnight
+        console.log(`📅 Weekly reset scheduled for next Sunday: ${nextFetchDate.toLocaleString()}`);
     } else if (period === 'monthly') {
-        // Fetch after 30 days from now
-        nextFetchDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-        console.log(`📅 Next fetch scheduled for: ${nextFetchDate.toLocaleString()}`);
+        // Monthly = Date-specific (resets on the 15th of each month)
+        nextFetchDate = new Date(now.getFullYear(), now.getMonth(), 15);
+        
+        // If today is already past the 15th, schedule for next month's 15th
+        if (now.getDate() >= 15) {
+            nextFetchDate = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+        }
+        
+        nextFetchDate.setHours(0, 0, 0, 0); // Set to midnight
+        console.log(`📅 Monthly reset scheduled for the 15th: ${nextFetchDate.toLocaleString()}`);
     } else {
         return; // Don't schedule for daily
     }
@@ -391,8 +402,9 @@ function generateReportHTML(reportData, dateStr, timeStr) {
                     </thead>
                     <tbody>
                         ${Object.entries(reportData.revenueBreakdown).map(([category, data]) => {
-                            const amount = typeof data === 'object' && data.total ? parseFloat(data.total) : parseFloat(data) || 0;
-                            const percentage = reportData.summary.totalRevenue > 0 && !isNaN(amount)
+                            // Handle both { amount: 0, items: 0 } and plain number formats
+                            const amount = typeof data === 'object' && data.amount ? parseFloat(data.amount) : parseFloat(data) || 0;
+                            const percentage = reportData.summary.totalRevenue > 0 && !isNaN(amount) && amount > 0
                                 ? ((amount / reportData.summary.totalRevenue) * 100).toFixed(1)
                                 : '0.0';
                             return `
@@ -484,18 +496,62 @@ async function exportSalesReport(format = 'pdf') {
         }, 1500);
     }
     
-    // Fetch revenue breakdown data
+    // Calculate revenue breakdown from recent orders
     let revenueBreakdown = {};
     try {
-        const response = await authenticatedFetch('/api/revenue/breakdown');
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data && result.data.breakdown) {
-                revenueBreakdown = result.data.breakdown;
-            }
+        const breakdown = {
+            'Coffee': { amount: 0, items: 0 },
+            'Milk Tea': { amount: 0, items: 0 },
+            'Frappe': { amount: 0, items: 0 },
+            'Beverages': { amount: 0, items: 0 },
+            'Snacks & Appetizers': { amount: 0, items: 0 },
+            'Rice Bowl Meals': { amount: 0, items: 0 },
+            'Hot Sizzlers': { amount: 0, items: 0 },
+            'Party Platters': { amount: 0, items: 0 },
+            'Budget Meals': { amount: 0, items: 0 },
+            'Specialty Dishes': { amount: 0, items: 0 },
+            'Other': { amount: 0, items: 0 }
+        };
+        
+        // Calculate from recent orders
+        if (salesData.recentOrders && salesData.recentOrders.length > 0) {
+            salesData.recentOrders.forEach(order => {
+                if (order.items && Array.isArray(order.items)) {
+                    order.items.forEach(item => {
+                        let category = getItemCategory(item.name || 'Unknown');
+                        
+                        const categoryMap = {
+                            'Coffee': 'Coffee',
+                            'Milk': 'Milk Tea',
+                            'Frappe': 'Frappe',
+                            'Drink': 'Beverages',
+                            'Snack': 'Snacks & Appetizers',
+                            'Rice': 'Rice Bowl Meals',
+                            'Sizzling': 'Hot Sizzlers',
+                            'Party': 'Party Platters',
+                            'Budget': 'Budget Meals',
+                            'Specialty': 'Specialty Dishes'
+                        };
+                        
+                        category = categoryMap[category] || category;
+                        
+                        const itemTotal = (item.price || 0) * (item.quantity || 1);
+                        
+                        if (!breakdown[category]) {
+                            breakdown[category] = { amount: 0, items: 0 };
+                        }
+                        
+                        breakdown[category].amount += itemTotal;
+                        breakdown[category].items += (item.quantity || 1);
+                    });
+                }
+            });
         }
+        
+        revenueBreakdown = breakdown;
+        console.log('✅ Revenue breakdown calculated for export:', revenueBreakdown);
     } catch (error) {
-        console.log('ℹ️ Revenue breakdown not available for export');
+        console.log('ℹ️ Revenue breakdown calculation skipped:', error.message);
     }
     
     const reportData = {
@@ -901,6 +957,34 @@ function exportToPDF(reportData, dateStr, timeStr) {
                             <div class="change">Profit %</div>
                         </div>
                     </div>
+                    
+                    ${reportData.revenueBreakdown && Object.keys(reportData.revenueBreakdown).length > 0 ? `
+                    <h2>📊 Revenue Breakdown by Category</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th style="text-align: right;">Revenue</th>
+                                <th style="text-align: right;">Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(reportData.revenueBreakdown).map(([category, data]) => {
+                                const amount = typeof data === 'object' && data.amount ? parseFloat(data.amount) : parseFloat(data) || 0;
+                                const percentage = reportData.summary.totalRevenue > 0 && !isNaN(amount) && amount > 0
+                                    ? ((amount / reportData.summary.totalRevenue) * 100).toFixed(1)
+                                    : '0.0';
+                                return amount > 0 ? `
+                                    <tr>
+                                        <td>${category}</td>
+                                        <td style="text-align: right;">${formatCurrency(amount)}</td>
+                                        <td style="text-align: right;">${percentage}%</td>
+                                    </tr>
+                                ` : '';
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    ` : ''}
                     
                     <h2>📈 Financial Summary</h2>
                     <table>
@@ -1732,6 +1816,7 @@ function renderSalesChart(stats) {
     }
     
     const chartBars = document.getElementById('chartBars');
+    const chartLabels = document.getElementById('chartLabels');
     if (!chartBars) return;
     
     chartBars.style.opacity = '0';
@@ -1739,9 +1824,13 @@ function renderSalesChart(stats) {
     
     setTimeout(() => {
         chartBars.innerHTML = '';
+        if (chartLabels) chartLabels.innerHTML = '';
         
         const today = new Date();
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        // Same green color for all days (matching Saturday)
+        const barColor = '#4CAF50';
         
         const totalRevenue = stats.totalRevenue || 0;
         const hasSales = totalRevenue > 0;
@@ -1767,104 +1856,132 @@ function renderSalesChart(stats) {
         }
         
         barHeights.forEach((targetHeight, index) => {
+            const barContainer = document.createElement('div');
+            barContainer.className = 'chart-bar-container';
+            barContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-end;
+                height: 120px;
+                flex: 1;
+                margin: 0 2px;
+            `;
+            
             const bar = document.createElement('div');
             const barValue = hasSales ? (targetHeight / 100) * (Math.max(totalRevenue * 1.2, 5000)) : 0;
             
             const initialHeight = hasSales ? 0 : 2;
             
+            // Use same green gradient for all bars
+            let barGradient = hasSales 
+                ? 'linear-gradient(to top, #4CAF50, #8BC34A)' 
+                : 'linear-gradient(to top, #FF9800, #FFB74D)';
+            
+            bar.className = 'chart-bar-animated';
             bar.style.cssText = `
-                height: ${initialHeight}%;
-                background: ${index === 6 ? (hasSales ? '#4CAF50' : '#FF9800') : '#E0E0E0'};
-                margin: 0 3px;
+                width: 100%;
+                height: 0;
+                background: ${barGradient};
                 border-radius: 4px 4px 0 0;
-                flex: 1;
-                display: flex;
-                align-items: flex-end;
-                justify-content: center;
-                color: white;
-                font-size: 10px;
-                font-weight: bold;
-                padding-bottom: 2px;
+                transition: height 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+                position: relative;
                 opacity: 0;
                 transform: translateY(20px);
-                transition: opacity 0.5s ease ${index * 100}ms, transform 0.5s ease ${index * 100}ms;
-                position: relative;
-                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             `;
             
             if (!hasSales && index === 6) {
-                bar.style.background = 'linear-gradient(to top, #FF9800, #FFB74D)';
-                bar.style.boxShadow = 'inset 0 -2px 5px rgba(0,0,0,0.1)';
+                bar.style.boxShadow = 'inset 0 -2px 5px rgba(0,0,0,0.1), 0 2px 8px rgba(0, 0, 0, 0.1)';
             }
             
-            bar.title = hasSales ? 
-                `${dayNames[index]}: ₱${barValue.toFixed(2)}` : 
-                `${dayNames[index]}: No sales`;
+            const valueDisplay = document.createElement('div');
+            valueDisplay.className = 'chart-bar-value';
+            valueDisplay.textContent = hasSales ? `₱${barValue.toFixed(2)}` : '₱0';
+            valueDisplay.style.cssText = `
+                position: absolute;
+                top: -25px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.85);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                white-space: nowrap;
+                z-index: 10;
+            `;
             
-            bar.textContent = '';
+            bar.appendChild(valueDisplay);
+            
+            bar.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.05)';
+                this.style.boxShadow = `0 8px 20px rgba(76, 175, 80, 0.4)`;
+                valueDisplay.style.opacity = '1';
+            });
+            
+            bar.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+                this.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+                if (!hasSales && index === 6) {
+                    this.style.boxShadow = 'inset 0 -2px 5px rgba(0,0,0,0.1), 0 2px 8px rgba(0, 0, 0, 0.1)';
+                }
+                valueDisplay.style.opacity = '0';
+            });
+            
             bar.dataset.isToday = (index === 6).toString();
             bar.dataset.hasSales = hasSales.toString();
+            bar.dataset.dayIndex = index.toString();
             
-            chartBars.appendChild(bar);
+            const label = document.createElement('div');
+            label.className = 'chart-label-animated';
+            label.textContent = dayNames[index];
+            label.style.cssText = `
+                margin-top: 12px;
+                font-size: 13px;
+                color: #4CAF50;
+                font-weight: 600;
+                opacity: 0;
+                transform: translateY(10px);
+                transition: opacity 0.5s ease ${index * 100}ms, transform 0.5s ease ${index * 100}ms, color 0.3s ease;
+                text-align: center;
+            `;
+            
+            barContainer.appendChild(bar);
+            barContainer.appendChild(label);
+            chartBars.appendChild(barContainer);
+            
+            // Add hover effect to label as well
+            label.addEventListener('mouseenter', function() {
+                this.style.color = '#2E7D32';
+                this.style.fontWeight = '700';
+                this.style.transform = 'translateY(5px) scale(1.1)';
+            });
+            
+            label.addEventListener('mouseleave', function() {
+                this.style.color = '#4CAF50';
+                this.style.fontWeight = '600';
+                this.style.transform = 'translateY(10px) scale(1)';
+            });
             
             setTimeout(() => {
-                if (hasSales) {
-                    animateProgressBar(bar, targetHeight, 800);
-                } else {
-                    const startTime = performance.now();
-                    const duration = 1200;
-                    
-                    function updateZeroBar(currentTime) {
-                        const elapsed = currentTime - startTime;
-                        const progress = Math.min(elapsed / duration, 1);
-                        const easeOut = 1 - Math.pow(1 - progress, 2);
-                        const currentHeight = 2 + (targetHeight - 2) * easeOut;
-                        
-                        bar.style.height = `${currentHeight}%`;
-                        
-                        if (index === 6) {
-                            const pulse = Math.sin(progress * Math.PI * 2) * 0.1;
-                            bar.style.opacity = `${0.7 + pulse}`;
-                        }
-                        
-                        if (progress < 1) {
-                            requestAnimationFrame(updateZeroBar);
-                        }
-                    }
-                    
-                    requestAnimationFrame(updateZeroBar);
-                }
-                
-                bar.style.opacity = hasSales ? '1' : '0.8';
+                bar.style.transition = 'height 1s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s ease, transform 0.5s ease, box-shadow 0.3s ease';
+                bar.style.height = `${targetHeight}%`;
+                bar.style.opacity = '1';
                 bar.style.transform = 'translateY(0)';
                 
-                if (!hasSales && index === 6) {
+                label.style.opacity = '1';
+                label.style.transform = 'translateY(0)';
+                
+                if (index === 6) {
                     setTimeout(() => {
-                        const zeroIndicator = document.createElement('div');
-                        zeroIndicator.textContent = '₱0';
-                        zeroIndicator.style.cssText = `
-                            position: absolute;
-                            top: -20px;
-                            left: 50%;
-                            transform: translateX(-50%);
-                            background: rgba(255, 0, 0, 0.9);
-                            color: white;
-                            padding: 2px 6px;
-                            border-radius: 10px;
-                            font-size: 9px;
-                            font-weight: bold;
-                            opacity: 0;
-                            transition: opacity 0.5s ease, top 0.5s ease;
-                        `;
-                        bar.appendChild(zeroIndicator);
-                        
-                        setTimeout(() => {
-                            zeroIndicator.style.opacity = '1';
-                            zeroIndicator.style.top = '-15px';
-                        }, 100);
-                    }, 500);
+                        bar.style.animation = 'pulse-glow 2s infinite';
+                    }, 1000);
                 }
-            }, index * 150);
+            }, index * 200);
         });
         
         const chartSummary = document.getElementById('chartSummary');
@@ -1922,6 +2039,17 @@ function addAnimationStyles() {
             100% { background-color: #4CAF50; }
         }
         
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.3); }
+            50% { box-shadow: 0 0 15px rgba(76, 175, 80, 0.6); }
+            100% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.3); }
+        }
+        
+        @keyframes fadeInZeroMessage {
+            from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        
         .loading-pulse {
             animation: loadingPulse 1s ease-in-out infinite;
         }
@@ -1940,9 +2068,72 @@ function addAnimationStyles() {
             animation: exportSuccess 0.5s ease-in-out;
         }
         
-        @keyframes fadeInZeroMessage {
-            from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .chart-bar-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            height: 120px;
+            flex: 1;
+            margin: 0 2px;
+            transition: opacity 0.3s ease;
+        }
+        
+        .chart-bar-container:hover {
+            opacity: 1;
+        }
+        
+        .chart-bar-animated {
+            width: 100%;
+            height: 0;
+            border-radius: 4px 4px 0 0;
+            transition: height 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            opacity: 0;
+            transform: translateY(20px);
+            cursor: pointer;
+        }
+        
+        .chart-bar-animated:hover {
+            filter: brightness(1.1);
+        }
+        
+        .chart-bar-value {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            white-space: nowrap;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .chart-label-animated {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #4CAF50;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(10px);
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .chart-label-animated:hover {
+            font-size: 14px;
+            font-weight: 700;
+            color: #2E7D32;
+            transform: translateY(5px) scale(1.1);
         }
     `;
     document.head.appendChild(style);
@@ -2058,43 +2249,107 @@ function getItemCategory(itemName) {
 
 async function calculateRevenueBreakdown() {
     try {
-        console.log('📊 Fetching revenue breakdown from MongoDB...');
+        console.log('📊 Calculating revenue breakdown from orders...');
+        console.log('📦 Current salesData.recentOrders:', salesData.recentOrders);
+        console.log('📦 Length:', salesData.recentOrders ? salesData.recentOrders.length : 0);
         
         showDonutLoadingState(1);
         showDonutLoadingState(2);
         
-        const response = await authenticatedFetch('/api/revenue/breakdown');
+        // Initialize breakdown object with all categories
+        const breakdown = {
+            'Coffee': { amount: 0, items: 0 },
+            'Milk Tea': { amount: 0, items: 0 },
+            'Frappe': { amount: 0, items: 0 },
+            'Beverages': { amount: 0, items: 0 },
+            'Snacks & Appetizers': { amount: 0, items: 0 },
+            'Rice Bowl Meals': { amount: 0, items: 0 },
+            'Hot Sizzlers': { amount: 0, items: 0 },
+            'Party Platters': { amount: 0, items: 0 },
+            'Budget Meals': { amount: 0, items: 0 },
+            'Specialty Dishes': { amount: 0, items: 0 },
+            'Other': { amount: 0, items: 0 }
+        };
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        // Calculate from recent orders
+        if (salesData.recentOrders && salesData.recentOrders.length > 0) {
+            console.log(`📦 Processing ${salesData.recentOrders.length} orders for breakdown...`);
+            
+            salesData.recentOrders.forEach((order, orderIdx) => {
+                console.log(`  Order ${orderIdx}:`, order);
+                if (order.items && Array.isArray(order.items)) {
+                    order.items.forEach(item => {
+                        // Get category for this item
+                        let category = getItemCategory(item.name || 'Unknown');
+                        console.log(`    Item: ${item.name} => Category: ${category}`);
+                        
+                        // Map shorthand categories to full names
+                        const categoryMap = {
+                            'Coffee': 'Coffee',
+                            'Milk': 'Milk Tea',
+                            'Frappe': 'Frappe',
+                            'Drink': 'Beverages',
+                            'Snack': 'Snacks & Appetizers',
+                            'Rice': 'Rice Bowl Meals',
+                            'Sizzling': 'Hot Sizzlers',
+                            'Party': 'Party Platters',
+                            'Budget': 'Budget Meals',
+                            'Specialty': 'Specialty Dishes'
+                        };
+                        
+                        category = categoryMap[category] || category;
+                        console.log(`      Mapped to: ${category}`);
+                        
+                        // Calculate item total
+                        const itemTotal = (item.price || 0) * (item.quantity || 1);
+                        console.log(`      Price: ₱${item.price} x Qty: ${item.quantity} = ₱${itemTotal}`);
+                        
+                        // Add to breakdown
+                        if (!breakdown[category]) {
+                            breakdown[category] = { amount: 0, items: 0 };
+                        }
+                        
+                        breakdown[category].amount += itemTotal;
+                        breakdown[category].items += (item.quantity || 1);
+                    });
+                }
+            });
+        } else {
+            console.warn('⚠️ No recent orders found in salesData!');
         }
         
-        const result = await response.json();
+        // Calculate total revenue and log breakdown
+        let totalRevenue = Object.values(breakdown).reduce((sum, cat) => sum + cat.amount, 0);
         
-        if (!result.success) {
-            throw new Error(result.message || 'Failed to fetch revenue breakdown');
-        }
-        
-        const { breakdown, totalRevenue, totalOrders, totalItems, date } = result.data;
-        
-        console.log('✅ Revenue breakdown fetched successfully:', {
+        console.log('✅ Revenue breakdown calculated:', {
             totalRevenue: `₱${totalRevenue.toFixed(2)}`,
-            totalOrders: totalOrders,
-            totalItems: totalItems,
             categories: Object.keys(breakdown).length,
-            date: date
+            breakdown: breakdown
         });
         
-        console.log('📊 Breakdown data received:', breakdown);
+        // Log each category
+        console.log('📊 Category Breakdown:');
+        Object.entries(breakdown).forEach(([cat, data]) => {
+            if (data.amount > 0) {
+                const percent = totalRevenue > 0 ? ((data.amount / totalRevenue) * 100).toFixed(1) : 0;
+                console.log(`  ${cat}: ₱${data.amount.toFixed(2)} (${percent}%)`);
+            }
+        });
         
+        const totalOrders = salesData.totalOrders || 0;
+        const totalItems = Object.values(breakdown).reduce((sum, cat) => sum + cat.items, 0);
+        const date = new Date().toLocaleDateString('en-PH');
+        
+        console.log('📊 Calling updateRevenueBreakdownDisplay with:', { totalRevenue, date, categories: Object.keys(breakdown).length });
         updateRevenueBreakdownDisplay(breakdown, totalRevenue, date);
         
         return { breakdown, totalRevenue, totalOrders, totalItems, date };
         
     } catch (error) {
-        console.error('❌ Error fetching revenue breakdown:', error);
+        console.error('❌ Error calculating revenue breakdown:', error);
+        console.error('   Stack:', error.stack);
         
-        showDonutErrorState(1, 'Unable to load data');
+        showDonutErrorState(1, 'Unable to calculate');
         showDonutErrorState(2, 'Please refresh');
         
         return { breakdown: {}, totalRevenue: 0, totalOrders: 0, totalItems: 0 };
@@ -2126,7 +2381,12 @@ function showDonutLoadingState(donutNumber) {
 function showDonutErrorState(donutNumber, message) {
     const donutChart = document.getElementById(`donutChart${donutNumber}`);
     if (donutChart) {
-        donutChart.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#dc3545;">${message}</div>`;
+        donutChart.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#94a3b8;text-align:center;padding:20px;">
+            <div>
+                <div style="font-size:16px;font-weight:600;margin-bottom:8px;">ℹ️ ${message}</div>
+                <div style="font-size:12px;color:#cbd5e1;">No revenue data available yet</div>
+            </div>
+        </div>`;
     }
 }
 
@@ -2164,6 +2424,29 @@ function updateRevenueBreakdownDisplay(breakdown, totalRevenue, date = null) {
             console.warn('⚠️ Breakdown is not a valid object:', breakdown);
             showDonutErrorState(1, 'No Data');
             showDonutErrorState(2, 'No Data');
+            return;
+        }
+        
+        // Check if breakdown has any data (all amounts are 0)
+        const hasData = Object.values(breakdown).some(cat => cat.amount && cat.amount > 0);
+        if (!hasData) {
+            console.warn('⚠️ Breakdown has no revenue data - all categories are 0');
+            showDonutErrorState(1, 'No Data');
+            showDonutErrorState(2, 'No Data');
+            
+            // Still hide all category items
+            for (let donutNum = 1; donutNum <= 2; donutNum++) {
+                for (let i = 1; i <= 11; i++) {
+                    const nameEl = document.getElementById(`cat${donutNum}_name${i}`);
+                    const percentEl = document.getElementById(`cat${donutNum}_percent${i}`);
+                    if (nameEl) {
+                        nameEl.textContent = '';
+                        const parentLi = nameEl.closest('li');
+                        if (parentLi) parentLi.style.display = 'none';
+                    }
+                    if (percentEl) percentEl.textContent = '';
+                }
+            }
             return;
         }
         
@@ -2535,13 +2818,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isSalesPage) {
         console.log('🏁 Loading sales report...');
         
+        // Load daily period data by default
         setTimeout(() => {
-            loadSalesReport();
+            loadSalesReportByPeriod('daily');
         }, 500);
-        
-        setTimeout(() => {
-            calculateRevenueBreakdown();
-        }, 800);
         
         setTimeout(() => {
             setupSalesRealTimeUpdates();
@@ -2549,8 +2829,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         setInterval(() => {
             console.log('🔄 Periodic refresh of sales report (30s interval)');
-            loadSalesReport();
-            calculateRevenueBreakdown();
+            loadSalesReportByPeriod(currentPeriod);
         }, 30000);
         
         document.addEventListener('keydown', function(e) {

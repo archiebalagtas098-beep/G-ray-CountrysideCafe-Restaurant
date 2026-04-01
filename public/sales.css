@@ -472,7 +472,7 @@ body {
 
 /* Graph visualization */
 .graph-visual {
-    height: 250px;
+    height: 200px;
     position: relative;
     border-left: 2px solid black;
     border-bottom: 2px solid black;
