@@ -42,7 +42,26 @@ const NAVIGATION_ROUTES = {
     'settings': '/admindashboard/infosettings'
 };
 
-// ==================== 🔴 DISABLE BACK BUTTON PREVENTION ====================
+// ==================== � AUTHENTICATED FETCH HELPER ====================
+async function authenticatedFetch(url, options = {}) {
+    const token = localStorage.getItem('authToken');
+    const headers = {
+        'Accept': 'application/json',
+        ...options.headers
+    };
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include'
+    });
+}
+
+// ==================== �🔴 DISABLE BACK BUTTON PREVENTION ====================
 function disableBackButtonPrevention() {
     // Remove popstate event listeners that are preventing back button
     window.removeEventListener('popstate', backButtonPreventionHandler);
@@ -240,13 +259,9 @@ async function loadDashboardData() {
 async function loadStats() {
     try {
         console.log('📊 Loading dashboard stats...');
+        
         // Fetch general stats first
-        const response = await fetch('/api/dashboard/stats', {
-            headers: {
-                'Accept': 'application/json'
-            },
-            credentials: 'include'
-        });
+        const response = await authenticatedFetch('/api/dashboard/stats');
         
         if (!response.ok) {
             throw new Error(`Stats API failed: ${response.status}`);
@@ -269,12 +284,7 @@ async function loadStats() {
         
         // Also fetch daily data from MongoDB
         console.log('📅 Fetching today\'s daily data from MongoDB...');
-        const dailyResponse = await fetch('/api/dashboard/stats?period=daily', {
-            headers: {
-                'Accept': 'application/json'
-            },
-            credentials: 'include'
-        });
+        const dailyResponse = await authenticatedFetch('/api/dashboard/stats?period=daily');
         
         if (dailyResponse.ok) {
             const dailyResult = await dailyResponse.json();
@@ -299,9 +309,7 @@ async function loadStats() {
 async function loadInventoryStatus() {
     try {
         console.log('📦 Loading inventory status...');
-        const response = await fetch('/api/inventory/status?limit=5', {
-            credentials: 'include'
-        });
+        const response = await authenticatedFetch('/api/inventory/status?limit=5');
         
         if (response.ok) {
             const result = await response.json();
@@ -330,9 +338,7 @@ async function loadTodayOrders() {
         console.log('📦 Fetching today\'s orders from MongoDB...');
         
         // ✅ Increased limit from 5 to 20 to show more orders
-        const response = await fetch(`/api/orders/today?limit=20`, {
-            credentials: 'include'
-        });
+        const response = await authenticatedFetch(`/api/orders/today?limit=20`);
         
         if (response.ok) {
             const result = await response.json();
@@ -365,9 +371,7 @@ async function loadTopSellingItems() {
         console.log('📊 Loading top selling items directly from API...');
         
         // ✅ ALWAYS fetch directly from API for real-time data
-        const response = await fetch('/api/orders/top-items', {
-            credentials: 'include'
-        });
+        const response = await authenticatedFetch('/api/orders/top-items');
         
         if (response.ok) {
             const result = await response.json();
@@ -435,9 +439,7 @@ async function loadTopSellingItems() {
 // Load sales chart data
 async function loadSalesChartData() {
     try {
-        const response = await fetch('/api/sales/chart?days=7', {
-            credentials: 'include'
-        });
+        const response = await authenticatedFetch('/api/sales/chart?days=7');
         
         if (response.ok) {
             const result = await response.json();
