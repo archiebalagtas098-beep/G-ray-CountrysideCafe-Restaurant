@@ -6088,9 +6088,8 @@ function updateDashboardStats() {
     const inStockItems = allMenuItems.filter(item => (item.currentStock || 0) > (item.minStock || 0)).length;
     
     const menuValueTotal = allMenuItems.reduce((total, item) => {
-        const price = item.price || item.price || 0;
-        const stock = item.currentStock || 0;
-        return total + (price * stock);
+        const price = item.price || 0;
+        return total + price;
     }, 0);
     
     const totalEl = document.getElementById('totalProducts');

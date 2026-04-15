@@ -494,7 +494,7 @@
             `;
 
             // Revenue Breakdown Table
-            if (revenueBreakdown && revenueBreakdown.length > 0) {
+            if (revenueBreakdown && Object.keys(revenueBreakdown).length > 0) {
                 html += `
                     <h2 class="section-title">
                         <span class="emoji">📊</span> Revenue Breakdown
@@ -510,7 +510,18 @@
                         <tbody>
                 `;
                 
-                revenueBreakdown.forEach(item => {
+                // Handle both array and object formats
+                const breakdownEntries = Array.isArray(revenueBreakdown) 
+                    ? revenueBreakdown 
+                    : Object.entries(revenueBreakdown).map(([category, data]) => ({
+                        category: category,
+                        revenue: typeof data === 'object' && data.amount ? data.amount : data || 0,
+                        percentage: (typeof data === 'object' && data.amount ? data.amount : data || 0) > 0 
+                            ? (((typeof data === 'object' && data.amount ? data.amount : data || 0) / (performanceSummary.totalRevenue || 1)) * 100).toFixed(1)
+                            : '0.0'
+                    }));
+                
+                breakdownEntries.forEach(item => {
                     html += `
                         <tr>
                             <td>${item.category || '—'}</td>

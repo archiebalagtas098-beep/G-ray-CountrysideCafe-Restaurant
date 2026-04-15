@@ -164,15 +164,61 @@ async function loadSalesReportByPeriod(period) {
     try {
         console.log(`📊 Loading ${period} sales data...`);
         
-        const response = await authenticatedFetch(`/api/dashboard/stats?period=${period}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        // Load dashboard stats
+        const statsResponse = await authenticatedFetch(`/api/dashboard/stats?period=${period}`);
+        if (!statsResponse.ok) {
+            throw new Error(`HTTP error! status: ${statsResponse.status}`);
         }
         
-        const result = await response.json();
-        const stats = result.success ? result.data : result;
+        const statsResult = await statsResponse.json();
+        const stats = statsResult.success ? statsResult.data : statsResult;
         
-        console.log(`✅ ${period} data loaded:`, stats);
+        console.log(`✅ ${period} stats loaded:`, stats);
+        
+        // Also fetch actual orders for detailed breakdown
+        console.log(`📦 Fetching ALL completed orders from database...`);
+        try {
+            // Fetch with very high limit to get all orders from database
+            const ordersResponse = await authenticatedFetch(`/api/orders?status=completed&limit=100000`);
+            if (ordersResponse.ok) {
+                const ordersResult = await ordersResponse.json();
+                const orders = ordersResult.success ? ordersResult.data : ordersResult;
+                
+                if (Array.isArray(orders) && orders.length > 0) {
+                    console.log(`✅ Fetched ${orders.length} completed orders from database`);
+                    
+                    // Store ALL orders - don't limit
+                    salesData.recentOrders = orders;
+                    
+                    // Log sample orders for debugging
+                    console.log('📦 Sample orders:', orders.slice(0, 3));
+                    
+                    // Log breakdown by order structure
+                    let totalItems = 0;
+                    orders.forEach((order, idx) => {
+                        if (order.items && Array.isArray(order.items)) {
+                            totalItems += order.items.length;
+                            if (idx < 3) {
+                                console.log(`  Order ${idx + 1}: ${order.items.length} items, Total: ₱${order.total}`);
+                                order.items.forEach((item, itemIdx) => {
+                                    console.log(`    Item ${itemIdx + 1}: ${item.name} x${item.quantity} @ ₱${item.price}`);
+                                });
+                            }
+                        }
+                    });
+                    console.log(`📊 Total items across all orders: ${totalItems}`);
+                } else {
+                    console.warn('⚠️ No completed orders found in database');
+                    salesData.recentOrders = [];
+                }
+            } else {
+                console.warn('⚠️ Failed to fetch orders from database');
+                salesData.recentOrders = [];
+            }
+        } catch (ordersError) {
+            console.error('⚠️ Error fetching orders from database:', ordersError);
+            salesData.recentOrders = [];
+        }
         
         // Update period display
         const periodEl = document.getElementById('reportPeriod');
@@ -193,12 +239,6 @@ async function loadSalesReportByPeriod(period) {
         salesData.totalOrders = Math.max(0, parseInt(stats.totalOrders) || 0);
         salesData.totalCustomers = Math.max(0, parseInt(stats.totalCustomers) || 0);
         salesData.avgOrderValue = salesData.totalOrders > 0 ? salesData.totalRevenue / salesData.totalOrders : 0;
-        
-        if (Array.isArray(stats.recentOrders) && stats.recentOrders.length > 0) {
-            salesData.recentOrders = stats.recentOrders;
-        } else {
-            salesData.recentOrders = [];
-        }
         
         updateSalesReportDisplay(oldData);
         calculateRevenueBreakdown();
@@ -1029,7 +1069,6 @@ function exportToPDF(reportData, dateStr, timeStr) {
                         </div>
                     </div>
                     
-                    ${reportData.revenueBreakdown && Object.keys(reportData.revenueBreakdown).length > 0 ? `
                     <h2>📊 Revenue Breakdown by Category</h2>
                     <table>
                         <thead>
@@ -1045,17 +1084,16 @@ function exportToPDF(reportData, dateStr, timeStr) {
                                 const percentage = reportData.summary.totalRevenue > 0 && !isNaN(amount) && amount > 0
                                     ? ((amount / reportData.summary.totalRevenue) * 100).toFixed(1)
                                     : '0.0';
-                                return amount > 0 ? `
+                                return `
                                     <tr>
                                         <td>${category}</td>
                                         <td style="text-align: right;">${formatCurrency(amount)}</td>
                                         <td style="text-align: right;">${percentage}%</td>
                                     </tr>
-                                ` : '';
+                                `;
                             }).join('')}
                         </tbody>
                     </table>
-                    ` : ''}
                     
                     <h2>📈 Financial Summary</h2>
                     <table>
@@ -2510,6 +2548,13 @@ function updateRevenueBreakdownDisplay(breakdown, totalRevenue, date = null) {
         console.log('   Breakdown object:', breakdown);
         console.log('   Breakdown keys:', Object.keys(breakdown));
         
+        // Define default date upfront so it's accessible throughout the function
+        const displayDate = date || new Date().toLocaleDateString('en-PH', { 
+            month: 'short', 
+            day: 'numeric',
+            year: 'numeric'
+        });
+        
         if (date) {
             const dateObj = new Date(date);
             const dateStr = dateObj.toLocaleDateString('en-PH', { 
@@ -2522,15 +2567,10 @@ function updateRevenueBreakdownDisplay(breakdown, totalRevenue, date = null) {
             if (dateEl1) dateEl1.textContent = dateStr;
             if (dateEl2) dateEl2.textContent = dateStr;
         } else {
-            const defaultDate = new Date().toLocaleDateString('en-PH', { 
-                month: 'short', 
-                day: 'numeric',
-                year: 'numeric'
-            });
             const dateEl1 = document.getElementById('revenuePeriod1');
             const dateEl2 = document.getElementById('revenuePeriod2');
-            if (dateEl1) dateEl1.textContent = defaultDate;
-            if (dateEl2) dateEl2.textContent = defaultDate;
+            if (dateEl1) dateEl1.textContent = displayDate;
+            if (dateEl2) dateEl2.textContent = displayDate;
         }
         
         // Ensure breakdown is an object
@@ -2545,22 +2585,33 @@ function updateRevenueBreakdownDisplay(breakdown, totalRevenue, date = null) {
         const hasData = Object.values(breakdown).some(cat => cat.amount && cat.amount > 0);
         if (!hasData) {
             console.warn('⚠️ Breakdown has no revenue data - all categories are 0');
-            showDonutErrorState(1, 'No Data');
-            showDonutErrorState(2, 'No Data');
             
-            // Still hide all category items
-            for (let donutNum = 1; donutNum <= 2; donutNum++) {
-                for (let i = 1; i <= 11; i++) {
-                    const nameEl = document.getElementById(`cat${donutNum}_name${i}`);
-                    const percentEl = document.getElementById(`cat${donutNum}_percent${i}`);
-                    if (nameEl) {
-                        nameEl.textContent = '';
-                        const parentLi = nameEl.closest('li');
-                        if (parentLi) parentLi.style.display = 'none';
-                    }
-                    if (percentEl) percentEl.textContent = '';
-                }
-            }
+            // Display empty donut charts showing all categories with ₱0.00
+            const categoryColors = {
+                'Coffee': '#b45309',
+                'Milk Tea': '#ec4899',
+                'Frappe': '#06b6d4',
+                'Beverages': '#10b981',
+                'Snacks & Appetizers': '#f97316',
+                'Rice Bowl Meals': '#3b82f6',
+                'Hot Sizzlers': '#ef4444',
+                'Party Trays': '#8b5cf6',
+                'Budget Meals': '#6b7280',
+                'Specialty Dishes': '#d946ef'
+            };
+            
+            const emptyCategories = Object.keys(breakdown).map(name => ({
+                name: name,
+                label: name,
+                percentage: 0,
+                amount: 0,
+                color: categoryColors[name] || '#999999'
+            }));
+            
+            // Update both donuts with empty state
+            populateSingleDonut(1, emptyCategories.map(c => c.name), breakdown, categoryColors, 0, false);
+            populateSingleDonut(2, emptyCategories.map(c => c.name), breakdown, categoryColors, 0, false);
+            
             return;
         }
         
@@ -2930,22 +2981,31 @@ document.addEventListener('DOMContentLoaded', function() {
     const isSalesPage = window.location.pathname.includes('salesandreports');
     
     if (isSalesPage) {
-        console.log('🏁 Loading sales report...');
+        console.log('🏁 Loading sales report from database...');
         
-        // Load daily period data by default
-        setTimeout(() => {
-            loadSalesReportByPeriod('daily');
-        }, 500);
+        // Load daily period data by default - ensure we wait for it to complete
+        console.log('⏳ Fetching daily sales data...');
+        loadSalesReportByPeriod('daily').then(() => {
+            console.log('✅ Daily sales data loaded successfully');
+        }).catch(err => {
+            console.error('❌ Error loading daily data:', err);
+            showNotification('Failed to load sales data. Please refresh the page.', 'error');
+        });
         
+        // Setup real-time updates after initial load
         setTimeout(() => {
             setupSalesRealTimeUpdates();
         }, 1000);
         
+        // Periodic refresh every 30 seconds
         setInterval(() => {
             console.log('🔄 Periodic refresh of sales report (30s interval)');
-            loadSalesReportByPeriod(currentPeriod);
+            loadSalesReportByPeriod(currentPeriod).catch(err => {
+                console.error('❌ Error in periodic refresh:', err);
+            });
         }, 30000);
         
+        // Keyboard shortcut for export
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
                 e.preventDefault();
@@ -2977,6 +3037,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('🔄 Reconnecting EventSource...');
                 setupSalesRealTimeUpdates();
             }
+            // Refresh data when page becomes visible
+            console.log('🔄 Refreshing data as page became visible');
+            loadSalesReportByPeriod(currentPeriod).catch(err => {
+                console.error('❌ Error refreshing data:', err);
+            });
         }
     });
 });
